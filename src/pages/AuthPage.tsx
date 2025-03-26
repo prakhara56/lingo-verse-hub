@@ -1,107 +1,71 @@
 
-import { useState } from "react";
-import { MainLayout } from "@/components/layout/MainLayout";
-import { Button } from "@/components/ui/button";
+import { useState, useEffect } from "react";
+import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useToast } from "@/hooks/use-toast";
-import { Lock, User, EyeOff, Eye } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { useNavigate } from "react-router-dom";
+import { Lock, User, EyeOff, Eye, Mail, UserPlus } from "lucide-react";
 
 const AuthPage = () => {
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [username, setUsername] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const { toast } = useToast();
+  const { signIn, signUp, user } = useAuth();
+  const navigate = useNavigate();
 
-  const handleLogin = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!username || !password) {
-      toast({
-        title: "Error",
-        description: "Please fill in all fields",
-        variant: "destructive",
-      });
-      return;
+  useEffect(() => {
+    if (user) {
+      navigate('/');
     }
+  }, [user, navigate]);
 
-    // This would connect to a real authentication system in production
-    toast({
-      title: "Login Successful",
-      description: "Welcome back! You've been logged in.",
-    });
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await signIn(email, password);
   };
 
-  const handleRegister = (e: React.FormEvent) => {
+  const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!username || !password || !email) {
-      toast({
-        title: "Error",
-        description: "Please fill in all fields",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    // This would connect to a real authentication system in production
-    toast({
-      title: "Registration Successful",
-      description: "Your account has been created.",
-    });
-  };
-
-  const handleForgotPassword = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!email) {
-      toast({
-        title: "Error",
-        description: "Please enter your email address",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    // This would connect to a real password reset system in production
-    toast({
-      title: "Password Reset Email Sent",
-      description: "Check your inbox for instructions to reset your password.",
-    });
+    await signUp(email, password, username);
   };
 
   return (
-    <MainLayout>
-      <div className="max-w-md mx-auto py-12">
+    <div className="min-h-screen flex items-center justify-center p-4 bg-background">
+      <div className="max-w-md w-full">
         <Card className="neo-blur">
           <CardHeader className="space-y-1 text-center">
             <CardTitle className="text-2xl font-bold">
               <span className="bg-gradient-to-r from-blue-600 via-blue-500 to-indigo-400 bg-clip-text text-transparent">
-                Authentication Portal
+                AI Craftworks
               </span>
             </CardTitle>
-            <CardDescription>Manage your account access</CardDescription>
+            <CardDescription>Sign in to access your AI tools</CardDescription>
           </CardHeader>
           <CardContent>
             <Tabs defaultValue="login" className="w-full">
-              <TabsList className="grid w-full grid-cols-3">
+              <TabsList className="grid w-full grid-cols-2">
                 <TabsTrigger value="login">Login</TabsTrigger>
                 <TabsTrigger value="register">Register</TabsTrigger>
-                <TabsTrigger value="forgot">Reset</TabsTrigger>
               </TabsList>
 
               <TabsContent value="login">
                 <form onSubmit={handleLogin} className="space-y-4 pt-4">
                   <div className="space-y-2">
-                    <Label htmlFor="username">Username</Label>
+                    <Label htmlFor="email">Email</Label>
                     <div className="relative">
-                      <User className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                      <Mail className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
                       <Input
-                        id="username"
-                        placeholder="Enter your username"
+                        id="email"
+                        type="email"
+                        placeholder="your.email@example.com"
                         className="pl-10"
-                        value={username}
-                        onChange={(e) => setUsername(e.target.value)}
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        required
                       />
                     </div>
                   </div>
@@ -116,6 +80,7 @@ const AuthPage = () => {
                         className="pl-10 pr-10"
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
+                        required
                       />
                       <Button
                         type="button"
@@ -141,34 +106,46 @@ const AuthPage = () => {
               <TabsContent value="register">
                 <form onSubmit={handleRegister} className="space-y-4 pt-4">
                   <div className="space-y-2">
-                    <Label htmlFor="email">Email</Label>
-                    <Input
-                      id="email"
-                      type="email"
-                      placeholder="Enter your email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                    />
+                    <Label htmlFor="email-reg">Email</Label>
+                    <div className="relative">
+                      <Mail className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        id="email-reg"
+                        type="email"
+                        placeholder="your.email@example.com"
+                        className="pl-10"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        required
+                      />
+                    </div>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="username-reg">Username</Label>
-                    <Input
-                      id="username-reg"
-                      placeholder="Choose a username"
-                      value={username}
-                      onChange={(e) => setUsername(e.target.value)}
-                    />
+                    <Label htmlFor="username">Username</Label>
+                    <div className="relative">
+                      <User className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        id="username"
+                        placeholder="Choose a username"
+                        className="pl-10"
+                        value={username}
+                        onChange={(e) => setUsername(e.target.value)}
+                        required
+                      />
+                    </div>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="password-reg">Password</Label>
                     <div className="relative">
+                      <Lock className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
                       <Input
                         id="password-reg"
                         type={showPassword ? "text" : "password"}
                         placeholder="Create a password"
-                        className="pr-10"
+                        className="pl-10 pr-10"
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
+                        required
                       />
                       <Button
                         type="button"
@@ -190,29 +167,11 @@ const AuthPage = () => {
                   </Button>
                 </form>
               </TabsContent>
-
-              <TabsContent value="forgot">
-                <form onSubmit={handleForgotPassword} className="space-y-4 pt-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="email-reset">Email</Label>
-                    <Input
-                      id="email-reset"
-                      type="email"
-                      placeholder="Enter your email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                    />
-                  </div>
-                  <Button type="submit" className="w-full">
-                    Reset Password
-                  </Button>
-                </form>
-              </TabsContent>
             </Tabs>
           </CardContent>
         </Card>
       </div>
-    </MainLayout>
+    </div>
   );
 };
 

@@ -10,10 +10,20 @@ import {
   Lock, 
   ChevronLeft, 
   ChevronRight, 
-  Settings
+  Settings,
+  Sun,
+  Moon,
+  LogOut,
+  BarChart,
+  FileEdit,
+  Youtube,
+  User
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+import { useTheme } from '@/contexts/ThemeContext';
+import { useAuth } from '@/contexts/AuthContext';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -24,18 +34,27 @@ interface AppLink {
   name: string;
   path: string;
   icon: React.ReactNode;
+  category?: string;
 }
 
 export const Sidebar = ({ isOpen, setIsOpen }: SidebarProps) => {
   const location = useLocation();
+  const { theme, toggleTheme } = useTheme();
+  const { user, signOut, userProfile } = useAuth();
   
   const apps: AppLink[] = [
-    { name: 'Chat', path: '/chat', icon: <MessageSquare className="h-5 w-5" /> },
-    { name: 'Text Generation', path: '/text-generation', icon: <FileText className="h-5 w-5" /> },
-    { name: 'Image Generation', path: '/image-generation', icon: <Image className="h-5 w-5" /> },
-    { name: 'Code Assistant', path: '/code-assistant', icon: <Code className="h-5 w-5" /> },
-    { name: 'Audio Transcription', path: '/audio-transcription', icon: <Music className="h-5 w-5" /> }
+    { name: 'Home', path: '/', icon: <MessageSquare className="h-5 w-5" />, category: 'main' },
+    { name: 'AI Chat Hub', path: '/chat', icon: <MessageSquare className="h-5 w-5" />, category: 'main' },
+    { name: 'Stock Analyzer', path: '/stock-analyzer', icon: <BarChart className="h-5 w-5" />, category: 'main' },
+    { name: 'Blog Generator', path: '/blog-generator', icon: <FileEdit className="h-5 w-5" />, category: 'main' },
+    { name: 'CineNotes', path: '/cine-notes', icon: <Youtube className="h-5 w-5" />, category: 'main' },
+    { name: 'Settings', path: '/settings', icon: <Settings className="h-5 w-5" />, category: 'extra' }
   ];
+
+  const getInitials = (username: string | null): string => {
+    if (!username) return "AI";
+    return username.substring(0, 2).toUpperCase();
+  };
 
   return (
     <aside
@@ -65,11 +84,30 @@ export const Sidebar = ({ isOpen, setIsOpen }: SidebarProps) => {
 
         {isOpen && (
           <>
+            {user && (
+              <div className="mb-6 px-2">
+                <div className="flex items-center space-x-3 p-2 rounded-lg bg-accent/30">
+                  <Avatar>
+                    <AvatarImage src={userProfile?.avatar_url ?? ""} />
+                    <AvatarFallback>{getInitials(userProfile?.username)}</AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">
+                      {userProfile?.username || user.email}
+                    </p>
+                    <p className="text-xs text-muted-foreground truncate">
+                      {user.email}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div className="space-y-1">
               <p className="text-xs font-medium text-muted-foreground px-2 py-1">
                 Applications
               </p>
-              {apps.map((app) => (
+              {apps.filter(app => app.category === 'main').map((app) => (
                 <Link
                   key={app.path}
                   to={app.path}
@@ -86,21 +124,68 @@ export const Sidebar = ({ isOpen, setIsOpen }: SidebarProps) => {
               ))}
             </div>
 
-            <div className="mt-auto">
-              <Link
-                to="/auth"
-                className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all hover:bg-accent"
-              >
-                <Lock className="h-5 w-5" />
-                <span>Authentication</span>
-              </Link>
-              <Link
-                to="/settings"
-                className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all hover:bg-accent"
-              >
-                <Settings className="h-5 w-5" />
-                <span>Settings</span>
-              </Link>
+            <div className="mt-auto space-y-1">
+              <div className="pt-4">
+                <p className="text-xs font-medium text-muted-foreground px-2 py-1">
+                  Preferences
+                </p>
+                <Button
+                  variant="ghost"
+                  className="w-full flex items-center justify-between px-3 py-2 text-sm"
+                  onClick={toggleTheme}
+                >
+                  <div className="flex items-center gap-3">
+                    {theme === 'dark' ? (
+                      <Moon className="h-5 w-5" />
+                    ) : (
+                      <Sun className="h-5 w-5" />
+                    )}
+                    <span>{theme === 'dark' ? 'Dark Mode' : 'Light Mode'}</span>
+                  </div>
+                </Button>
+              </div>
+
+              {user ? (
+                <Button
+                  variant="ghost"
+                  className="w-full flex items-center justify-between px-3 py-2 text-sm text-destructive hover:text-destructive hover:bg-destructive/10"
+                  onClick={signOut}
+                >
+                  <div className="flex items-center gap-3">
+                    <LogOut className="h-5 w-5" />
+                    <span>Sign Out</span>
+                  </div>
+                </Button>
+              ) : (
+                <Link
+                  to="/auth"
+                  className={cn(
+                    "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all hover:bg-accent",
+                    location.pathname === '/auth' 
+                      ? "bg-accent text-accent-foreground" 
+                      : "text-foreground"
+                  )}
+                >
+                  <Lock className="h-5 w-5" />
+                  <span>Sign In</span>
+                </Link>
+              )}
+
+              {apps.filter(app => app.category === 'extra').map((app) => (
+                <Link
+                  key={app.path}
+                  to={app.path}
+                  className={cn(
+                    "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all hover:bg-accent",
+                    location.pathname === app.path 
+                      ? "bg-accent text-accent-foreground" 
+                      : "text-foreground"
+                  )}
+                >
+                  {app.icon}
+                  <span>{app.name}</span>
+                </Link>
+              ))}
             </div>
           </>
         )}

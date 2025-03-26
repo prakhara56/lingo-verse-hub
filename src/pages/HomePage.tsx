@@ -9,39 +9,59 @@ import {
   Image, 
   Code, 
   Music, 
-  ArrowRight
+  ArrowRight,
+  BarChart,
+  FileEdit,
+  Youtube,
 } from 'lucide-react';
 
 const appCards = [
   {
-    title: "AI Chat",
-    description: "Chat with different AI models like ChatGPT, Gemini, or Claude",
+    title: "AI Chat Hub",
+    description: "Chat with AI models, generate text, images, code, and transcribe audio",
     icon: <MessageSquare className="h-8 w-8 text-blue-500" />,
     path: "/chat"
   },
   {
+    title: "Stock Analyzer",
+    description: "Get detailed analysis reports on stocks and market trends",
+    icon: <BarChart className="h-8 w-8 text-green-500" />,
+    path: "/stock-analyzer"
+  },
+  {
+    title: "Blog Generator",
+    description: "Create and publish technical blog posts on any topic",
+    icon: <FileEdit className="h-8 w-8 text-purple-500" />,
+    path: "/blog-generator"
+  },
+  {
+    title: "CineNotes",
+    description: "Generate detailed notes from YouTube videos or uploaded content",
+    icon: <Youtube className="h-8 w-8 text-red-500" />,
+    path: "/cine-notes"
+  }
+];
+
+const featureCards = [
+  {
     title: "Text Generation",
     description: "Generate creative writing, summaries, translations & more",
-    icon: <FileText className="h-8 w-8 text-green-500" />,
-    path: "/text-generation"
+    icon: <FileText className="h-6 w-6 text-indigo-500" />,
   },
   {
     title: "Image Generation",
     description: "Create beautiful images from text descriptions",
-    icon: <Image className="h-8 w-8 text-purple-500" />,
-    path: "/image-generation"
+    icon: <Image className="h-6 w-6 text-pink-500" />,
   },
   {
     title: "Code Assistant",
     description: "Get help with coding, debugging and code explanations",
-    icon: <Code className="h-8 w-8 text-yellow-500" />,
-    path: "/code-assistant"
+    icon: <Code className="h-6 w-6 text-yellow-500" />,
   },
   {
     title: "Audio Transcription",
     description: "Convert speech to text with high accuracy",
-    icon: <Music className="h-8 w-8 text-pink-500" />,
-    path: "/audio-transcription"
+    icon: <Music className="h-6 w-6 text-emerald-500" />,
   }
 ];
 
@@ -60,9 +80,9 @@ const HomePage = () => {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-16">
           {appCards.map((card, index) => (
-            <Card key={index} className="hover-scale overflow-hidden border border-border/50 shadow-sm">
+            <Card key={index} className="hover-scale overflow-hidden border border-border/50 shadow-sm transition-all hover:shadow-md">
               <CardHeader className="pb-3">
                 <div className="mb-2">{card.icon}</div>
                 <CardTitle className="text-xl">{card.title}</CardTitle>
@@ -78,6 +98,31 @@ const HomePage = () => {
               </CardFooter>
             </Card>
           ))}
+        </div>
+
+        <div className="max-w-4xl mx-auto">
+          <h2 className="text-2xl font-bold mb-6 text-center">All-in-One AI Chat Features</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {featureCards.map((feature, index) => (
+              <Card key={index} className="flex items-start p-4 gap-3">
+                <div className="rounded-full p-2 bg-secondary/50">
+                  {feature.icon}
+                </div>
+                <div>
+                  <h3 className="font-medium">{feature.title}</h3>
+                  <p className="text-sm text-muted-foreground">{feature.description}</p>
+                </div>
+              </Card>
+            ))}
+          </div>
+          <div className="text-center mt-6">
+            <Button asChild>
+              <Link to="/chat" className="flex items-center gap-2">
+                <span>Try the All-in-One AI Chat</span>
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+            </Button>
+          </div>
         </div>
       </section>
     </MainLayout>
