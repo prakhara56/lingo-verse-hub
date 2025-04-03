@@ -1,4 +1,3 @@
-
 import { useState, useRef, useEffect } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
@@ -20,7 +19,7 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase, messageToJson } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 
@@ -36,9 +35,25 @@ interface Conversation {
   id: string;
   title: string;
   messages: Message[];
-  created_at: Date;
+  created_at: string; // Changed from Date to string to match Supabase
   feature_type: string;
 }
+
+// Helper function to convert DB data to our Conversation type
+const convertDbToConversation = (item: any): Conversation => {
+  const messages = Array.isArray(item.content) ? item.content.map((msg: any) => ({
+    ...msg,
+    timestamp: new Date(msg.timestamp) // Convert timestamp string back to Date
+  })) : [];
+
+  return {
+    id: item.id,
+    title: item.title,
+    messages: messages,
+    created_at: item.created_at,
+    feature_type: item.feature_type
+  };
+};
 
 const ChatPage = () => {
   const [activeTab, setActiveTab] = useState<string>("text");
@@ -70,7 +85,9 @@ const ChatPage = () => {
         
       if (error) throw error;
       
-      setConversations(data || []);
+      // Convert data to Conversation[] type
+      const conversationsData = data ? data.map(convertDbToConversation) : [];
+      setConversations(conversationsData);
     } catch (error) {
       console.error("Error fetching conversations:", error);
     }
@@ -83,12 +100,15 @@ const ChatPage = () => {
       // Create a title from the first message or use default
       const title = messages[0]?.content.substring(0, 30) + (messages[0]?.content.length > 30 ? '...' : '') || "New conversation";
       
+      // Convert Message objects to JSON-safe format
+      const jsonMessages = messageToJson(messages);
+      
       if (currentConversationId) {
         // Update existing conversation
         const { error } = await supabase
           .from('conversation_history')
           .update({
-            content: messages,
+            content: jsonMessages,
             title
           })
           .eq('id', currentConversationId);
@@ -100,7 +120,7 @@ const ChatPage = () => {
           .from('conversation_history')
           .insert({
             user_id: user.id,
-            content: messages,
+            content: jsonMessages,
             title,
             feature_type: activeTab
           })
@@ -136,7 +156,8 @@ const ChatPage = () => {
       if (error) throw error;
       
       if (data) {
-        setMessages(data.content || []);
+        const convertedData = convertDbToConversation(data);
+        setMessages(convertedData.messages);
         setActiveTab(data.feature_type || "text");
         setCurrentConversationId(data.id);
       }

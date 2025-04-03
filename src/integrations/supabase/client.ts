@@ -17,6 +17,32 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
   }
 });
 
+// Helper function to convert Message object to JSON-safe format
+export function messageToJson(message: any): any {
+  if (typeof message === 'object' && message !== null) {
+    if (message instanceof Date) {
+      return message.toISOString();
+    }
+    
+    // If it's an array, convert each item
+    if (Array.isArray(message)) {
+      return message.map(messageToJson);
+    }
+    
+    // Process object properties
+    const result: Record<string, any> = {};
+    for (const key in message) {
+      if (Object.prototype.hasOwnProperty.call(message, key)) {
+        result[key] = messageToJson(message[key]);
+      }
+    }
+    return result;
+  }
+  
+  // Return primitive values as is
+  return message;
+}
+
 // Initialize storage bucket for avatars if not exists
 (async () => {
   try {
