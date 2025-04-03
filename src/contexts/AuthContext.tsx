@@ -10,11 +10,12 @@ type AuthContextType = {
   user: User | null;
   loading: boolean;
   signIn: (emailOrUsername: string, password: string) => Promise<void>;
-  signUp: (email: string, password: string, username: string) => Promise<void>;
+  signUp: (email: string, password: string, username: string, name: string) => Promise<void>;
   signOut: () => Promise<void>;
   userProfile: ProfileType | null;
   isAdmin: boolean;
   updateUsername: (username: string) => Promise<boolean>;
+  updateName: (name: string) => Promise<boolean>;
 };
 
 export type ProfileType = {
@@ -23,6 +24,7 @@ export type ProfileType = {
   avatar_url: string | null;
   theme: 'light' | 'dark';
   is_admin: boolean | null;
+  name: string | null;
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -156,20 +158,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (usernameError || !data) {
           throw new Error('Username not found. Please check your credentials.');
         }
-          
-        // Get user from auth admin API
-        const { data: authData, error: authError } = await supabase.auth.admin.getUserById(data.id);
         
-        if (authError || !authData) {
+        // Get the user's email from auth.users using the id
+        const { data: userData, error: userError } = await supabase.auth.admin.getUserById(data.id);
+        
+        if (userError || !userData?.user?.email) {
           throw new Error('User not found. Please check your credentials.');
         }
-          
-        // Sign in with the retrieved email
+        
+        // Now sign in with the email
         const { error: signInError } = await supabase.auth.signInWithPassword({
-          email: authData.user.email!,
+          email: userData.user.email,
           password,
         });
-          
+        
         if (signInError) throw signInError;
       }
 
@@ -180,6 +182,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       navigate('/');
     } catch (error: any) {
+      console.error("Sign in error:", error);
       toast({
         title: 'Error signing in',
         description: error.message,
@@ -188,7 +191,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const signUp = async (email: string, password: string, username: string) => {
+  const signUp = async (email: string, password: string, username: string, name: string) => {
     if (!username || username.trim() === '') {
       toast({
         title: 'Error signing up',
@@ -216,6 +219,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         options: {
           data: {
             username,
+            name,
           },
           emailRedirectTo: window.location.origin + '/auth/confirm',
         },
@@ -300,6 +304,42 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const updateName = async (name: string): Promise<boolean> => {
+    if (!user) return false;
+    
+    try {
+      // Update the name
+      const { error } = await supabase
+        .from('profiles')
+        .update({ name })
+        .eq('id', user.id);
+        
+      if (error) {
+        throw error;
+      }
+      
+      // Fetch the updated profile
+      const updatedProfile = await fetchUserProfile(user.id);
+      if (updatedProfile) {
+        setUserProfile(updatedProfile);
+      }
+      
+      toast({
+        title: 'Name updated',
+        description: 'Your name has been successfully updated.',
+      });
+      
+      return true;
+    } catch (error: any) {
+      toast({
+        title: 'Error updating name',
+        description: error.message,
+        variant: 'destructive',
+      });
+      return false;
+    }
+  };
+
   const signOut = async () => {
     try {
       await supabase.auth.signOut();
@@ -329,6 +369,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         userProfile,
         isAdmin,
         updateUsername,
+        updateName,
       }}
     >
       {children}

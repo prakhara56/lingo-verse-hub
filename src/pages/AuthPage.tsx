@@ -14,6 +14,7 @@ const AuthPage = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [username, setUsername] = useState("");
+  const [name, setName] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loginIdentifier, setLoginIdentifier] = useState(""); // Can be email or username
   const [showConfirmation, setShowConfirmation] = useState(false);
@@ -39,7 +40,11 @@ const AuthPage = () => {
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
-    await signUp(email, password, username);
+    if (!username.trim()) {
+      alert("Username is required");
+      return;
+    }
+    await signUp(email, password, username, name);
   };
 
   if (showConfirmation) {
@@ -155,6 +160,19 @@ const AuthPage = () => {
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
                         required
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="name">Full Name</Label>
+                    <div className="relative">
+                      <User className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        id="name"
+                        placeholder="Your full name"
+                        className="pl-10"
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
                       />
                     </div>
                   </div>

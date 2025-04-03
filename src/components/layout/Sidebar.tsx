@@ -59,6 +59,12 @@ export const Sidebar = ({ isOpen, setIsOpen }: SidebarProps) => {
     return username.substring(0, 2).toUpperCase();
   };
 
+  const getDisplayName = (): string => {
+    if (userProfile?.name) return userProfile.name;
+    if (userProfile?.username) return userProfile.username;
+    return "User";
+  };
+
   return (
     <aside
       className={cn(
@@ -105,10 +111,10 @@ export const Sidebar = ({ isOpen, setIsOpen }: SidebarProps) => {
                   </Avatar>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium truncate">
-                      {userProfile?.username || 'Set username'}
+                      {getDisplayName()}
                     </p>
                     <p className="text-xs text-muted-foreground truncate">
-                      {user.email}
+                      {userProfile?.username || 'Set username'}
                     </p>
                   </div>
                 </div>
