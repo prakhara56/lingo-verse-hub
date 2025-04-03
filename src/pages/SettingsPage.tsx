@@ -18,8 +18,9 @@ import { supabase } from "@/integrations/supabase/client";
 
 const SettingsPage = () => {
   const { theme, toggleTheme } = useTheme();
-  const { userProfile, user, updateUsername } = useAuth();
+  const { userProfile, user, updateUsername, updateName } = useAuth();
   const [username, setUsername] = useState(userProfile?.username || "");
+  const [fullName, setFullName] = useState(userProfile?.name || "");
   const [openaiKey, setOpenaiKey] = useState("");
   const [anthropicKey, setAnthropicKey] = useState("");
   const [defaultModel, setDefaultModel] = useState("gpt-4");
@@ -39,10 +40,19 @@ const SettingsPage = () => {
     }
 
     setIsLoading(true);
-    const success = await updateUsername(username);
+    
+    // Update username
+    const usernameSuccess = await updateUsername(username);
+    
+    // Update name
+    let nameSuccess = true;
+    if (fullName !== userProfile?.name) {
+      nameSuccess = await updateName(fullName);
+    }
+    
     setIsLoading(false);
     
-    if (success) {
+    if (usernameSuccess && nameSuccess) {
       toast({
         title: "Profile Updated",
         description: "Your profile settings have been updated.",
@@ -211,6 +221,16 @@ const SettingsPage = () => {
                 <div className="space-y-2">
                   <Label htmlFor="email">Email</Label>
                   <Input id="email" value={user?.email || ""} disabled />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="full-name">Full Name</Label>
+                  <Input 
+                    id="full-name" 
+                    value={fullName} 
+                    onChange={(e) => setFullName(e.target.value)} 
+                    disabled={isLoading}
+                    placeholder="Your full name"
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="username">Username</Label>

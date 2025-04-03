@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
@@ -52,7 +51,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return null;
       }
 
-      return data as ProfileType;
+      // Ensure we're returning a ProfileType object with all required fields
+      return {
+        id: data.id,
+        username: data.username,
+        avatar_url: data.avatar_url,
+        theme: data.theme || 'light',
+        is_admin: !!data.is_admin,
+        name: data.name
+      } as ProfileType;
     } catch (error) {
       console.error('Error in fetchUserProfile:', error);
       return null;

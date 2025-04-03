@@ -63,6 +63,7 @@ export type Database = {
           created_at: string
           id: string
           is_admin: boolean | null
+          name: string | null
           theme: string | null
           updated_at: string
           username: string | null
@@ -72,6 +73,7 @@ export type Database = {
           created_at?: string
           id: string
           is_admin?: boolean | null
+          name?: string | null
           theme?: string | null
           updated_at?: string
           username?: string | null
@@ -81,6 +83,7 @@ export type Database = {
           created_at?: string
           id?: string
           is_admin?: boolean | null
+          name?: string | null
           theme?: string | null
           updated_at?: string
           username?: string | null
