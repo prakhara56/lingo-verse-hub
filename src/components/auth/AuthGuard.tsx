@@ -1,25 +1,32 @@
 
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { Loader2 } from 'lucide-react';
 
 type AuthGuardProps = {
   children: React.ReactNode;
+  requireAdmin?: boolean;
 };
 
-const AuthGuard = ({ children }: AuthGuardProps) => {
-  const { user, loading } = useAuth();
+const AuthGuard = ({ children, requireAdmin = false }: AuthGuardProps) => {
+  const { user, loading, isAdmin } = useAuth();
   const location = useLocation();
 
   if (loading) {
     return (
-      <div className="h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+      <div className="h-screen flex flex-col items-center justify-center">
+        <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
+        <p className="text-muted-foreground">Loading your profile...</p>
       </div>
     );
   }
 
   if (!user) {
     return <Navigate to="/auth" state={{ from: location }} replace />;
+  }
+
+  if (requireAdmin && !isAdmin) {
+    return <Navigate to="/" replace />;
   }
 
   return <>{children}</>;

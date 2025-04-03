@@ -1,13 +1,18 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Wand2, Copy, Trash, Loader2 } from "lucide-react";
+import { Wand2, Copy, Trash, Loader2, BookmarkPlus, History } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import ConversationHistoryDrawer from "@/components/history/ConversationHistoryDrawer";
+import { ConversationHistory } from "@/hooks/use-conversation-history";
+import { useAuth } from "@/contexts/AuthContext";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 const TextGenerationPage = () => {
   const [prompt, setPrompt] = useState("");
@@ -15,7 +20,15 @@ const TextGenerationPage = () => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [selectedModel, setSelectedModel] = useState("gpt-4");
   const [selectedTask, setSelectedTask] = useState("creative");
+  const [saveTitle, setSaveTitle] = useState("");
+  const [showSaveDialog, setShowSaveDialog] = useState(false);
   const { toast } = useToast();
+  const { user } = useAuth();
+
+  // Clear save dialog when changing tasks
+  useEffect(() => {
+    setSaveTitle("");
+  }, [selectedTask]);
 
   const tasks = {
     creative: {
@@ -52,6 +65,10 @@ const TextGenerationPage = () => {
     
     setIsGenerating(true);
     
+    // Generate a default save title based on the prompt
+    const defaultTitle = prompt.slice(0, 30) + (prompt.length > 30 ? "..." : "");
+    setSaveTitle(defaultTitle);
+    
     // Simulate text generation
     setTimeout(() => {
       const taskType = selectedTask === "creative" ? "creative writing" : 
@@ -73,6 +90,50 @@ const TextGenerationPage = () => {
   const clearAll = () => {
     setPrompt("");
     setGeneratedText("");
+    setSaveTitle("");
+  };
+
+  const saveConversation = async () => {
+    const title = saveTitle || "Untitled conversation";
+    
+    try {
+      // Implement your save functionality here using the useConversationHistory hook
+      // Example:
+      // await saveHistory(title, {
+      //   prompt,
+      //   response: generatedText,
+      //   model: selectedModel,
+      //   task: selectedTask
+      // });
+      
+      toast({
+        title: "Conversation saved",
+        description: "Your conversation has been saved to history."
+      });
+      
+      setShowSaveDialog(false);
+    } catch (error: any) {
+      toast({
+        title: "Error saving conversation",
+        description: error.message,
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleHistorySelect = (history: ConversationHistory) => {
+    if (history.content) {
+      const content = history.content as any;
+      setPrompt(content.prompt || "");
+      setGeneratedText(content.response || "");
+      setSelectedModel(content.model || "gpt-4");
+      setSelectedTask(content.task || "creative");
+      
+      toast({
+        title: "Conversation restored",
+        description: "Previous conversation has been loaded."
+      });
+    }
   };
 
   return (
@@ -80,6 +141,18 @@ const TextGenerationPage = () => {
       <div className="flex flex-col">
         <div className="pb-4 flex items-center justify-between">
           <h1 className="text-3xl font-bold tracking-tight">Text Generation</h1>
+          <div className="flex gap-2">
+            <ConversationHistoryDrawer
+              type="chat"
+              onSelectHistory={handleHistorySelect}
+              trigger={
+                <Button variant="outline" size="sm">
+                  <History className="h-4 w-4 mr-2" />
+                  History
+                </Button>
+              }
+            />
+          </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -153,27 +226,55 @@ const TextGenerationPage = () => {
               <div className="flex justify-between items-center">
                 <CardTitle>Generated Output</CardTitle>
                 {generatedText && (
-                  <Button variant="outline" size="sm" onClick={copyToClipboard}>
-                    <Copy className="h-4 w-4 mr-2" />
-                    Copy
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button variant="outline" size="sm" onClick={() => setShowSaveDialog(true)}>
+                      <BookmarkPlus className="h-4 w-4 mr-2" />
+                      Save
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={copyToClipboard}>
+                      <Copy className="h-4 w-4 mr-2" />
+                      Copy
+                    </Button>
+                  </div>
                 )}
               </div>
             </CardHeader>
             <CardContent>
-              <div className="min-h-[300px] p-4 bg-secondary/50 rounded-md">
-                {isGenerating ? (
-                  <div className="h-full flex items-center justify-center">
-                    <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              {showSaveDialog && generatedText ? (
+                <div className="space-y-4 p-4 bg-secondary/50 rounded-md">
+                  <div className="space-y-2">
+                    <Label htmlFor="save-title">Save as</Label>
+                    <Input
+                      id="save-title"
+                      value={saveTitle}
+                      onChange={(e) => setSaveTitle(e.target.value)}
+                      placeholder="Enter a title for this conversation"
+                    />
                   </div>
-                ) : generatedText ? (
-                  <div className="whitespace-pre-wrap">{generatedText}</div>
-                ) : (
-                  <div className="h-full flex items-center justify-center text-muted-foreground">
-                    Your generated text will appear here
+                  <div className="flex justify-end gap-2">
+                    <Button variant="outline" onClick={() => setShowSaveDialog(false)}>
+                      Cancel
+                    </Button>
+                    <Button onClick={saveConversation}>
+                      Save
+                    </Button>
                   </div>
-                )}
-              </div>
+                </div>
+              ) : (
+                <div className="min-h-[300px] p-4 bg-secondary/50 rounded-md">
+                  {isGenerating ? (
+                    <div className="h-full flex items-center justify-center">
+                      <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                    </div>
+                  ) : generatedText ? (
+                    <div className="whitespace-pre-wrap">{generatedText}</div>
+                  ) : (
+                    <div className="h-full flex items-center justify-center text-muted-foreground">
+                      Your generated text will appear here
+                    </div>
+                  )}
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>

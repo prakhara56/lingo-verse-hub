@@ -9,6 +9,33 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      conversation_history: {
+        Row: {
+          content: Json
+          created_at: string
+          feature_type: string
+          id: string
+          title: string
+          user_id: string
+        }
+        Insert: {
+          content: Json
+          created_at?: string
+          feature_type: string
+          id?: string
+          title: string
+          user_id: string
+        }
+        Update: {
+          content?: Json
+          created_at?: string
+          feature_type?: string
+          id?: string
+          title?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       "Login Table": {
         Row: {
           created_at: string
@@ -35,6 +62,7 @@ export type Database = {
           avatar_url: string | null
           created_at: string
           id: string
+          is_admin: boolean | null
           theme: string | null
           updated_at: string
           username: string | null
@@ -43,6 +71,7 @@ export type Database = {
           avatar_url?: string | null
           created_at?: string
           id: string
+          is_admin?: boolean | null
           theme?: string | null
           updated_at?: string
           username?: string | null
@@ -51,6 +80,7 @@ export type Database = {
           avatar_url?: string | null
           created_at?: string
           id?: string
+          is_admin?: boolean | null
           theme?: string | null
           updated_at?: string
           username?: string | null

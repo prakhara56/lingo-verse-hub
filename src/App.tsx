@@ -29,6 +29,7 @@ const App = () => (
             <Sonner />
             <Routes>
               <Route path="/auth" element={<AuthPage />} />
+              <Route path="/auth/confirm" element={<AuthPage />} />
               
               <Route path="/" element={
                 <AuthGuard>
