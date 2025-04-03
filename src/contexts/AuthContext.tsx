@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
@@ -36,44 +35,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const { toast } = useToast();
   const navigate = useNavigate();
 
-  useEffect(() => {
-    const setupAuth = async () => {
-      try {
-        // Set up auth state listener FIRST
-        const { data: { subscription } } = supabase.auth.onAuthStateChange(
-          async (event, session) => {
-            setSession(session);
-            setUser(session?.user ?? null);
-            
-            if (session?.user) {
-              await fetchUserProfile(session.user.id);
-            } else {
-              setUserProfile(null);
-              setIsAdmin(false);
-            }
-          }
-        );
-
-        // THEN check for existing session
-        const { data: { session } } = await supabase.auth.getSession();
-        setSession(session);
-        setUser(session?.user ?? null);
-        
-        if (session?.user) {
-          await fetchUserProfile(session.user.id);
-        }
-
-        setLoading(false);
-        return () => subscription.unsubscribe();
-      } catch (error) {
-        console.error('Error setting up auth:', error);
-        setLoading(false);
-      }
-    };
-
-    setupAuth();
-  }, []);
-
+  // Separate function to fetch user profile to avoid nesting async calls
   const fetchUserProfile = async (userId: string) => {
     try {
       const { data, error } = await supabase
@@ -83,17 +45,90 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .single();
 
       if (error) {
-        throw error;
+        console.error('Error fetching profile:', error);
+        return null;
       }
 
-      if (data) {
-        setUserProfile(data as ProfileType);
-        setIsAdmin(!!data.is_admin);
-      }
+      return data as ProfileType;
     } catch (error) {
-      console.error('Error fetching user profile:', error);
+      console.error('Error in fetchUserProfile:', error);
+      return null;
     }
   };
+
+  useEffect(() => {
+    let mounted = true;
+    
+    const initializeAuth = async () => {
+      try {
+        // First set up the auth state listener
+        const { data: { subscription } } = supabase.auth.onAuthStateChange(
+          async (event, newSession) => {
+            console.log('Auth state changed:', event);
+            
+            if (mounted) {
+              setSession(newSession);
+              setUser(newSession?.user ?? null);
+              
+              if (newSession?.user) {
+                // Use setTimeout to prevent potential deadlocks with Supabase client
+                setTimeout(async () => {
+                  if (mounted) {
+                    const profile = await fetchUserProfile(newSession.user.id);
+                    if (profile && mounted) {
+                      setUserProfile(profile);
+                      setIsAdmin(!!profile.is_admin);
+                    }
+                  }
+                }, 0);
+              } else {
+                setUserProfile(null);
+                setIsAdmin(false);
+              }
+            }
+          }
+        );
+
+        // Then check for existing session
+        const { data: { session: currentSession }, error: sessionError } = 
+          await supabase.auth.getSession();
+        
+        if (sessionError) {
+          console.error('Error getting session:', sessionError);
+          throw sessionError;
+        }
+
+        if (mounted) {
+          setSession(currentSession);
+          setUser(currentSession?.user ?? null);
+          
+          if (currentSession?.user) {
+            const profile = await fetchUserProfile(currentSession.user.id);
+            if (profile && mounted) {
+              setUserProfile(profile);
+              setIsAdmin(!!profile.is_admin);
+            }
+          }
+        }
+        
+        // Always set loading to false, even if there were errors
+        if (mounted) setLoading(false);
+        
+        return () => {
+          subscription.unsubscribe();
+        };
+      } catch (error) {
+        console.error('Error initializing auth:', error);
+        if (mounted) setLoading(false);
+      }
+    };
+
+    initializeAuth();
+    
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const signIn = async (emailOrUsername: string, password: string) => {
     try {

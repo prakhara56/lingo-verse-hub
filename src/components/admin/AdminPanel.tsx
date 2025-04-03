@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -44,8 +43,7 @@ const AdminPanel = () => {
 
     setLoading(true);
     try {
-      // First get the user id from their email
-      // In production, you'd use a secure admin function
+      // First get the user id from their username
       const { data: userData, error: userError } = await supabase
         .from('profiles')
         .select('id')
@@ -53,11 +51,7 @@ const AdminPanel = () => {
         .single();
 
       if (userError) {
-        // Try to get the user information from auth.users
-        // This requires admin rights in production
-        
-        // Since we can't directly access auth.users in the client,
-        // we'll check if this is an email and search for a profile with matching username
+        // Try to check if this is an email and search for a profile with matching username
         if (newAdminEmail.includes('@')) {
           const { data: emailData, error: emailError } = await supabase
             .from('profiles')
