@@ -53,23 +53,32 @@ const AdminPanel = () => {
         .single();
 
       if (userError) {
-        // Try with email directly from auth
-        const { data: authData, error: authError } = await supabase.auth.admin.listUsers();
+        // Try to get the user information from auth.users
+        // This requires admin rights in production
         
-        if (authError) throw authError;
-        
-        const foundUser = authData.users.find(u => u.email === newAdminEmail);
-        if (!foundUser) {
-          throw new Error('User not found');
-        }
-        
-        // Update the user's admin status
-        const { error: updateError } = await supabase
-          .from('profiles')
-          .update({ is_admin: true })
-          .eq('id', foundUser.id);
+        // Since we can't directly access auth.users in the client,
+        // we'll check if this is an email and search for a profile with matching username
+        if (newAdminEmail.includes('@')) {
+          const { data: emailData, error: emailError } = await supabase
+            .from('profiles')
+            .select('id')
+            .ilike('username', newAdminEmail)
+            .single();
+            
+          if (emailError) {
+            throw new Error('User not found. Please check the email or username.');
+          }
           
-        if (updateError) throw updateError;
+          // Update the user's admin status
+          const { error: updateError } = await supabase
+            .from('profiles')
+            .update({ is_admin: true })
+            .eq('id', emailData.id);
+            
+          if (updateError) throw updateError;
+        } else {
+          throw new Error('User not found. Please check the username.');
+        }
       } else {
         // Update the user's admin status
         const { error: updateError } = await supabase
