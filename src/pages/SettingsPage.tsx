@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,22 +11,95 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
-import { Sun, Moon, Key, Save, User } from "lucide-react";
+import { Sun, Moon, Key, Save, User, Upload } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { supabase } from "@/integrations/supabase/client";
 
 const SettingsPage = () => {
   const { theme, toggleTheme } = useTheme();
-  const { userProfile, user } = useAuth();
+  const { userProfile, user, updateUsername } = useAuth();
   const [username, setUsername] = useState(userProfile?.username || "");
   const [openaiKey, setOpenaiKey] = useState("");
   const [anthropicKey, setAnthropicKey] = useState("");
   const [defaultModel, setDefaultModel] = useState("gpt-4");
   const { toast } = useToast();
+  const [isLoading, setIsLoading] = useState(false);
+  const [avatarUrl, setAvatarUrl] = useState(userProfile?.avatar_url || null);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
 
-  const handleSaveProfile = () => {
-    toast({
-      title: "Profile Saved",
-      description: "Your profile settings have been updated.",
-    });
+  const handleSaveProfile = async () => {
+    if (!username.trim()) {
+      toast({
+        title: "Username Required",
+        description: "Please enter a valid username.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsLoading(true);
+    const success = await updateUsername(username);
+    setIsLoading(false);
+    
+    if (success) {
+      toast({
+        title: "Profile Updated",
+        description: "Your profile settings have been updated.",
+      });
+    }
+  };
+
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || e.target.files.length === 0 || !user) {
+      return;
+    }
+    
+    const file = e.target.files[0];
+    const fileExt = file.name.split('.').pop();
+    const filePath = `${user.id}-${Math.random()}.${fileExt}`;
+    
+    setIsLoading(true);
+    
+    try {
+      // Upload the avatar to storage
+      const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(filePath, file);
+        
+      if (uploadError) throw uploadError;
+      
+      // Generate a public URL
+      const { data: publicURLData } = supabase.storage
+        .from('avatars')
+        .getPublicUrl(filePath);
+        
+      const avatarUrl = publicURLData.publicUrl;
+      
+      // Update the profile with the new avatar URL
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({ avatar_url: avatarUrl })
+        .eq('id', user.id);
+        
+      if (updateError) throw updateError;
+      
+      // Update local state
+      setAvatarUrl(avatarUrl);
+      
+      toast({
+        title: "Avatar Updated",
+        description: "Your profile photo has been updated.",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Upload Failed",
+        description: error.message || "Failed to upload avatar.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleSaveApiKeys = () => {
@@ -43,10 +116,65 @@ const SettingsPage = () => {
 
         <Tabs defaultValue="profile" className="space-y-8">
           <TabsList>
-            <TabsTrigger value="profile">Profile</TabsTrigger>
-            <TabsTrigger value="appearance">Appearance</TabsTrigger>
-            <TabsTrigger value="api-keys">API Keys</TabsTrigger>
-            <TabsTrigger value="ai-settings">AI Settings</TabsTrigger>
+            <TabsTrigger value="profile">
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="flex items-center gap-1">
+                      <User className="h-4 w-4" />
+                      <span>Profile</span>
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Manage your profile settings</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </TabsTrigger>
+            <TabsTrigger value="appearance">
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="flex items-center gap-1">
+                      {theme === 'dark' ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
+                      <span>Appearance</span>
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Customize the look and feel</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </TabsTrigger>
+            <TabsTrigger value="api-keys">
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="flex items-center gap-1">
+                      <Key className="h-4 w-4" />
+                      <span>API Keys</span>
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Manage your API integrations</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </TabsTrigger>
+            <TabsTrigger value="ai-settings">
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="flex items-center gap-1">
+                      <span>AI Settings</span>
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Configure AI model preferences</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="profile">
@@ -56,6 +184,30 @@ const SettingsPage = () => {
                 <CardDescription>Manage your account details</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
+                <div className="flex justify-center mb-4">
+                  <div className="relative">
+                    <Avatar className="h-24 w-24">
+                      <AvatarImage src={avatarUrl || ""} />
+                      <AvatarFallback className="text-lg">{userProfile?.username?.substring(0, 2).toUpperCase() || "AI"}</AvatarFallback>
+                    </Avatar>
+                    <Button 
+                      variant="secondary" 
+                      size="icon" 
+                      className="absolute bottom-0 right-0 rounded-full h-8 w-8"
+                      onClick={() => avatarInputRef.current?.click()}
+                      disabled={isLoading}
+                    >
+                      <Upload className="h-4 w-4" />
+                    </Button>
+                    <input 
+                      type="file"
+                      ref={avatarInputRef}
+                      onChange={handleAvatarUpload}
+                      className="hidden"
+                      accept="image/*"
+                    />
+                  </div>
+                </div>
                 <div className="space-y-2">
                   <Label htmlFor="email">Email</Label>
                   <Input id="email" value={user?.email || ""} disabled />
@@ -66,9 +218,15 @@ const SettingsPage = () => {
                     id="username" 
                     value={username} 
                     onChange={(e) => setUsername(e.target.value)} 
+                    disabled={isLoading}
+                    required
                   />
                 </div>
-                <Button onClick={handleSaveProfile} className="flex gap-2">
+                <Button 
+                  onClick={handleSaveProfile} 
+                  className="flex gap-2"
+                  disabled={isLoading}
+                >
                   <Save className="h-4 w-4" />
                   Save Changes
                 </Button>

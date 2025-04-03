@@ -17,13 +17,15 @@ import {
   BarChart,
   FileEdit,
   Youtube,
-  User
+  User,
+  History
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -35,6 +37,7 @@ interface AppLink {
   path: string;
   icon: React.ReactNode;
   category?: string;
+  description?: string;
 }
 
 export const Sidebar = ({ isOpen, setIsOpen }: SidebarProps) => {
@@ -43,12 +46,12 @@ export const Sidebar = ({ isOpen, setIsOpen }: SidebarProps) => {
   const { user, signOut, userProfile } = useAuth();
   
   const apps: AppLink[] = [
-    { name: 'Home', path: '/', icon: <MessageSquare className="h-5 w-5" />, category: 'main' },
-    { name: 'AI Chat Hub', path: '/chat', icon: <MessageSquare className="h-5 w-5" />, category: 'main' },
-    { name: 'Stock Analyzer', path: '/stock-analyzer', icon: <BarChart className="h-5 w-5" />, category: 'main' },
-    { name: 'Blog Generator', path: '/blog-generator', icon: <FileEdit className="h-5 w-5" />, category: 'main' },
-    { name: 'CineNotes', path: '/cine-notes', icon: <Youtube className="h-5 w-5" />, category: 'main' },
-    { name: 'Settings', path: '/settings', icon: <Settings className="h-5 w-5" />, category: 'extra' }
+    { name: 'Home', path: '/', icon: <MessageSquare className="h-5 w-5" />, category: 'main', description: 'Dashboard' },
+    { name: 'AI Chat Hub', path: '/chat', icon: <MessageSquare className="h-5 w-5" />, category: 'main', description: 'Chat with AI assistant' },
+    { name: 'Stock Analyzer', path: '/stock-analyzer', icon: <BarChart className="h-5 w-5" />, category: 'main', description: 'Analyze stock data' },
+    { name: 'Blog Generator', path: '/blog-generator', icon: <FileEdit className="h-5 w-5" />, category: 'main', description: 'Generate blog content' },
+    { name: 'CineNotes', path: '/cine-notes', icon: <Youtube className="h-5 w-5" />, category: 'main', description: 'Video notes and analysis' },
+    { name: 'Settings', path: '/settings', icon: <Settings className="h-5 w-5" />, category: 'extra', description: 'Configure app settings' }
   ];
 
   const getInitials = (username: string | null): string => {
@@ -72,14 +75,23 @@ export const Sidebar = ({ isOpen, setIsOpen }: SidebarProps) => {
               </h1>
             )}
           </Link>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setIsOpen(!isOpen)}
-            className="hover:bg-accent rounded-full h-8 w-8"
-          >
-            {isOpen ? <ChevronLeft className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-          </Button>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setIsOpen(!isOpen)}
+                  className="hover:bg-accent rounded-full h-8 w-8"
+                >
+                  {isOpen ? <ChevronLeft className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                {isOpen ? 'Collapse sidebar' : 'Expand sidebar'}
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         </div>
 
         {isOpen && (
@@ -93,7 +105,7 @@ export const Sidebar = ({ isOpen, setIsOpen }: SidebarProps) => {
                   </Avatar>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium truncate">
-                      {userProfile?.username || user.email}
+                      {userProfile?.username || 'Set username'}
                     </p>
                     <p className="text-xs text-muted-foreground truncate">
                       {user.email}
@@ -108,19 +120,27 @@ export const Sidebar = ({ isOpen, setIsOpen }: SidebarProps) => {
                 Applications
               </p>
               {apps.filter(app => app.category === 'main').map((app) => (
-                <Link
-                  key={app.path}
-                  to={app.path}
-                  className={cn(
-                    "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all hover:bg-accent",
-                    location.pathname === app.path 
-                      ? "bg-accent text-accent-foreground" 
-                      : "text-foreground"
-                  )}
-                >
-                  {app.icon}
-                  <span>{app.name}</span>
-                </Link>
+                <TooltipProvider key={app.path}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Link
+                        to={app.path}
+                        className={cn(
+                          "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all hover:bg-accent",
+                          location.pathname === app.path 
+                            ? "bg-accent text-accent-foreground" 
+                            : "text-foreground"
+                        )}
+                      >
+                        {app.icon}
+                        <span>{app.name}</span>
+                      </Link>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>{app.description}</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               ))}
             </div>
 
@@ -129,62 +149,97 @@ export const Sidebar = ({ isOpen, setIsOpen }: SidebarProps) => {
                 <p className="text-xs font-medium text-muted-foreground px-2 py-1">
                   Preferences
                 </p>
-                <Button
-                  variant="ghost"
-                  className="w-full flex items-center justify-between px-3 py-2 text-sm"
-                  onClick={toggleTheme}
-                >
-                  <div className="flex items-center gap-3">
-                    {theme === 'dark' ? (
-                      <Moon className="h-5 w-5" />
-                    ) : (
-                      <Sun className="h-5 w-5" />
-                    )}
-                    <span>{theme === 'dark' ? 'Dark Mode' : 'Light Mode'}</span>
-                  </div>
-                </Button>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        className="w-full flex items-center justify-between px-3 py-2 text-sm"
+                        onClick={toggleTheme}
+                      >
+                        <div className="flex items-center gap-3">
+                          {theme === 'dark' ? (
+                            <Moon className="h-5 w-5" />
+                          ) : (
+                            <Sun className="h-5 w-5" />
+                          )}
+                          <span>{theme === 'dark' ? 'Dark Mode' : 'Light Mode'}</span>
+                        </div>
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Toggle between light and dark mode</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               </div>
 
               {user ? (
-                <Button
-                  variant="ghost"
-                  className="w-full flex items-center justify-between px-3 py-2 text-sm text-destructive hover:text-destructive hover:bg-destructive/10"
-                  onClick={signOut}
-                >
-                  <div className="flex items-center gap-3">
-                    <LogOut className="h-5 w-5" />
-                    <span>Sign Out</span>
-                  </div>
-                </Button>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        className="w-full flex items-center justify-between px-3 py-2 text-sm text-destructive hover:text-destructive hover:bg-destructive/10"
+                        onClick={signOut}
+                      >
+                        <div className="flex items-center gap-3">
+                          <LogOut className="h-5 w-5" />
+                          <span>Sign Out</span>
+                        </div>
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Sign out of your account</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               ) : (
-                <Link
-                  to="/auth"
-                  className={cn(
-                    "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all hover:bg-accent",
-                    location.pathname === '/auth' 
-                      ? "bg-accent text-accent-foreground" 
-                      : "text-foreground"
-                  )}
-                >
-                  <Lock className="h-5 w-5" />
-                  <span>Sign In</span>
-                </Link>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Link
+                        to="/auth"
+                        className={cn(
+                          "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all hover:bg-accent",
+                          location.pathname === '/auth' 
+                            ? "bg-accent text-accent-foreground" 
+                            : "text-foreground"
+                        )}
+                      >
+                        <Lock className="h-5 w-5" />
+                        <span>Sign In</span>
+                      </Link>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Sign in or create an account</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               )}
 
               {apps.filter(app => app.category === 'extra').map((app) => (
-                <Link
-                  key={app.path}
-                  to={app.path}
-                  className={cn(
-                    "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all hover:bg-accent",
-                    location.pathname === app.path 
-                      ? "bg-accent text-accent-foreground" 
-                      : "text-foreground"
-                  )}
-                >
-                  {app.icon}
-                  <span>{app.name}</span>
-                </Link>
+                <TooltipProvider key={app.path}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Link
+                        to={app.path}
+                        className={cn(
+                          "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all hover:bg-accent",
+                          location.pathname === app.path 
+                            ? "bg-accent text-accent-foreground" 
+                            : "text-foreground"
+                        )}
+                      >
+                        {app.icon}
+                        <span>{app.name}</span>
+                      </Link>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>{app.description}</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               ))}
             </div>
           </>
@@ -197,14 +252,23 @@ export const Sidebar = ({ isOpen, setIsOpen }: SidebarProps) => {
         )}
       >
         {!isOpen && (
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={() => setIsOpen(true)}
-            className="hover:bg-accent rounded-full h-8 w-8 shadow-md"
-          >
-            <ChevronRight className="h-4 w-4" />
-          </Button>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => setIsOpen(true)}
+                  className="hover:bg-accent rounded-full h-8 w-8 shadow-md"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="right">
+                <p>Expand sidebar</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         )}
       </div>
     </aside>

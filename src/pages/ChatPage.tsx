@@ -15,9 +15,14 @@ import {
   Music, 
   Trash, 
   Loader2,
-  Download
+  Download,
+  History
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 
 interface Message {
   role: "user" | "assistant";
@@ -27,17 +32,123 @@ interface Message {
   attachment?: string;
 }
 
+interface Conversation {
+  id: string;
+  title: string;
+  messages: Message[];
+  created_at: Date;
+  feature_type: string;
+}
+
 const ChatPage = () => {
   const [activeTab, setActiveTab] = useState<string>("text");
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
+  const { user } = useAuth();
 
   useEffect(() => {
     scrollToBottom();
-  }, [messages]);
+    if (user) {
+      fetchConversations();
+    }
+  }, [messages, user]);
+
+  const fetchConversations = async () => {
+    if (!user) return;
+    
+    try {
+      const { data, error } = await supabase
+        .from('conversation_history')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+        
+      if (error) throw error;
+      
+      setConversations(data || []);
+    } catch (error) {
+      console.error("Error fetching conversations:", error);
+    }
+  };
+
+  const saveConversation = async () => {
+    if (!user || messages.length === 0) return;
+    
+    try {
+      // Create a title from the first message or use default
+      const title = messages[0]?.content.substring(0, 30) + (messages[0]?.content.length > 30 ? '...' : '') || "New conversation";
+      
+      if (currentConversationId) {
+        // Update existing conversation
+        const { error } = await supabase
+          .from('conversation_history')
+          .update({
+            content: messages,
+            title
+          })
+          .eq('id', currentConversationId);
+          
+        if (error) throw error;
+      } else {
+        // Create new conversation
+        const { data, error } = await supabase
+          .from('conversation_history')
+          .insert({
+            user_id: user.id,
+            content: messages,
+            title,
+            feature_type: activeTab
+          })
+          .select();
+          
+        if (error) throw error;
+        
+        if (data && data.length > 0) {
+          setCurrentConversationId(data[0].id);
+        }
+      }
+      
+      fetchConversations();
+      
+    } catch (error) {
+      console.error("Error saving conversation:", error);
+      toast({
+        title: "Error",
+        description: "Failed to save conversation",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const loadConversation = async (conversationId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('conversation_history')
+        .select('*')
+        .eq('id', conversationId)
+        .single();
+        
+      if (error) throw error;
+      
+      if (data) {
+        setMessages(data.content || []);
+        setActiveTab(data.feature_type || "text");
+        setCurrentConversationId(data.id);
+      }
+    } catch (error) {
+      console.error("Error loading conversation:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load conversation",
+        variant: "destructive",
+      });
+    }
+  };
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -99,11 +210,18 @@ const ChatPage = () => {
       
       setMessages((prev) => [...prev, aiMessage]);
       setIsLoading(false);
+      
+      // Auto-save conversation after AI response
+      setTimeout(() => {
+        saveConversation();
+      }, 500);
+      
     }, 1000);
   };
 
   const clearChat = () => {
     setMessages([]);
+    setCurrentConversationId(null);
   };
 
   const handleDownload = (content: string) => {
@@ -121,6 +239,11 @@ const ChatPage = () => {
     });
   };
 
+  const formatDate = (dateString: string | Date) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString() + " " + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
+
   return (
     <MainLayout>
       <div className="flex flex-col h-[calc(100vh-4rem)]">
@@ -128,22 +251,103 @@ const ChatPage = () => {
           <h1 className="text-3xl font-bold tracking-tight">AI Chat</h1>
           <div className="flex items-center gap-2">
             <ToggleGroup type="single" value={activeTab} onValueChange={(value) => value && setActiveTab(value)}>
-              <ToggleGroupItem value="text" aria-label="Text generation">
-                <MessageSquare className="h-4 w-4" />
-              </ToggleGroupItem>
-              <ToggleGroupItem value="image" aria-label="Image generation">
-                <Image className="h-4 w-4" />
-              </ToggleGroupItem>
-              <ToggleGroupItem value="code" aria-label="Code assistant">
-                <Code className="h-4 w-4" />
-              </ToggleGroupItem>
-              <ToggleGroupItem value="audio" aria-label="Audio transcription">
-                <Music className="h-4 w-4" />
-              </ToggleGroupItem>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <ToggleGroupItem value="text" aria-label="Text generation">
+                      <MessageSquare className="h-4 w-4" />
+                    </ToggleGroupItem>
+                  </TooltipTrigger>
+                  <TooltipContent>Text generation</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+              
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <ToggleGroupItem value="image" aria-label="Image generation">
+                      <Image className="h-4 w-4" />
+                    </ToggleGroupItem>
+                  </TooltipTrigger>
+                  <TooltipContent>Image generation</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+              
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <ToggleGroupItem value="code" aria-label="Code assistant">
+                      <Code className="h-4 w-4" />
+                    </ToggleGroupItem>
+                  </TooltipTrigger>
+                  <TooltipContent>Code assistant</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+              
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <ToggleGroupItem value="audio" aria-label="Audio transcription">
+                      <Music className="h-4 w-4" />
+                    </ToggleGroupItem>
+                  </TooltipTrigger>
+                  <TooltipContent>Audio transcription</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             </ToggleGroup>
-            <Button variant="outline" size="icon" onClick={clearChat}>
-              <Trash className="h-4 w-4" />
-            </Button>
+            
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="outline" size="icon" onClick={clearChat}>
+                    <Trash className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Clear conversation</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+            
+            <Sheet>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <SheetTrigger asChild>
+                      <Button variant="outline" size="icon">
+                        <History className="h-4 w-4" />
+                      </Button>
+                    </SheetTrigger>
+                  </TooltipTrigger>
+                  <TooltipContent>Conversation history</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+              
+              <SheetContent>
+                <SheetHeader>
+                  <SheetTitle>Conversation History</SheetTitle>
+                </SheetHeader>
+                <div className="mt-6 space-y-1">
+                  {conversations.length > 0 ? (
+                    conversations.map((conv) => (
+                      <Button
+                        key={conv.id}
+                        variant="ghost"
+                        className="w-full justify-start text-left h-auto py-3"
+                        onClick={() => loadConversation(conv.id)}
+                      >
+                        <div>
+                          <div className="font-medium">{conv.title}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {formatDate(conv.created_at)}
+                          </div>
+                        </div>
+                      </Button>
+                    ))
+                  ) : (
+                    <p className="text-sm text-muted-foreground p-4">No conversation history yet</p>
+                  )}
+                </div>
+              </SheetContent>
+            </Sheet>
           </div>
         </div>
 
@@ -188,9 +392,16 @@ const ChatPage = () => {
             disabled={isLoading}
             className="flex-1"
           />
-          <Button onClick={handleSendMessage} disabled={!input.trim() || isLoading}>
-            {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-          </Button>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button onClick={handleSendMessage} disabled={!input.trim() || isLoading}>
+                  {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Send message</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         </div>
       </div>
     </MainLayout>

@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
@@ -156,16 +157,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           throw new Error('Username not found. Please check your credentials.');
         }
           
-        // Get user email from auth.users using the id
-        const { data: userData, error: userError } = await supabase.auth.admin.getUserById(data.id);
+        // Get user from auth admin API
+        const { data: authData, error: authError } = await supabase.auth.admin.getUserById(data.id);
         
-        if (userError || !userData) {
+        if (authError || !authData) {
           throw new Error('User not found. Please check your credentials.');
         }
           
         // Sign in with the retrieved email
         const { error: signInError } = await supabase.auth.signInWithPassword({
-          email: userData.user.email!,
+          email: authData.user.email!,
           password,
         });
           
@@ -188,6 +189,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const signUp = async (email: string, password: string, username: string) => {
+    if (!username || username.trim() === '') {
+      toast({
+        title: 'Error signing up',
+        description: 'Username is required',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     try {
       // Check if username exists
       const { data: existingUser, error: checkError } = await supabase
@@ -231,6 +241,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const updateUsername = async (username: string): Promise<boolean> => {
     if (!user) return false;
     
+    if (!username || username.trim() === '') {
+      toast({
+        title: 'Error updating username',
+        description: 'Username cannot be empty',
+        variant: 'destructive',
+      });
+      return false;
+    }
+    
     try {
       // Check if username exists
       const { data: existingUser, error: checkError } = await supabase
@@ -259,8 +278,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         throw error;
       }
       
-      // Refresh the profile
-      await fetchUserProfile(user.id);
+      // Fetch the updated profile
+      const updatedProfile = await fetchUserProfile(user.id);
+      if (updatedProfile) {
+        setUserProfile(updatedProfile);
+      }
       
       toast({
         title: 'Username updated',
