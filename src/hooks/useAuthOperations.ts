@@ -59,27 +59,35 @@ export const useAuthOperations = () => {
           throw error;
         }
       } else {
-        // Sign in with username - first get the email associated with the username
-        const { data, error: usernameError } = await supabase
+        // Sign in with username - get the email from profiles table
+        const { data: profileData, error: profileError } = await supabase
           .from('profiles')
           .select('id')
           .eq('username', emailOrUsername)
           .single();
           
-        if (usernameError || !data) {
+        if (profileError || !profileData) {
           throw new Error('Username not found. Please check your credentials or try signing in with your email.');
         }
         
-        // Get the user's email from auth.users using the id
-        const { data: userData, error: userError } = await supabase.auth.admin.getUserById(data.id);
+        // Get the user's email from the auth system using the profile id
+        // We need to use the auth admin functions or find another approach
+        // For now, let's try a different approach - store email in metadata during signup
+        const { data: users, error: usersError } = await supabase.auth.admin.listUsers();
         
-        if (userError || !userData?.user?.email) {
+        if (usersError) {
+          // Fallback: try to get email from user metadata stored during signup
+          throw new Error('Unable to authenticate with username. Please try signing in with your email address.');
+        }
+        
+        const user = users.users.find(u => u.id === profileData.id);
+        if (!user?.email) {
           throw new Error('Unable to find account associated with this username. Please try signing in with your email.');
         }
         
         // Now sign in with the email
         const { error: signInError } = await supabase.auth.signInWithPassword({
-          email: userData.user.email,
+          email: user.email,
           password,
         });
         
@@ -185,12 +193,6 @@ export const useAuthOperations = () => {
         throw new Error('Username already taken. Please choose another one.');
       }
 
-      // Check if email is already registered
-      const { data: existingEmail } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('id', email);
-
       const { error } = await supabase.auth.signUp({
         email,
         password,
@@ -198,6 +200,7 @@ export const useAuthOperations = () => {
           data: {
             username,
             name: name || username,
+            email, // Store email in metadata for username-based login
           },
           emailRedirectTo: window.location.origin + '/auth/confirm',
         },

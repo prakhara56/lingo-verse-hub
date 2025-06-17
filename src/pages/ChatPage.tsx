@@ -24,6 +24,7 @@ import { supabase, messageToJson } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { chatbotService, ChatMessage as ApiChatMessage } from "@/services/chatbotService";
+import { ChatMessage } from "@/components/chat/ChatMessage";
 
 interface Message {
   role: "user" | "assistant";
@@ -67,7 +68,7 @@ const ChatPage = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
-  const { user } = useAuth();
+  const { user, userProfile } = useAuth();
 
   useEffect(() => {
     scrollToBottom();
@@ -277,21 +278,6 @@ const ChatPage = () => {
     setUploadedFiles([]);
   };
 
-  const handleDownload = (content: string) => {
-    const element = document.createElement("a");
-    const file = new Blob([content], { type: "text/plain" });
-    element.href = URL.createObjectURL(file);
-    element.download = `chat-content-${new Date().toISOString().slice(0, 10)}.txt`;
-    document.body.appendChild(element);
-    element.click();
-    document.body.removeChild(element);
-
-    toast({
-      title: "Success",
-      description: "Content downloaded successfully",
-    });
-  };
-
   const formatDate = (dateString: string | Date) => {
     const date = new Date(dateString);
     return date.toLocaleDateString() + " " + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -301,7 +287,14 @@ const ChatPage = () => {
     <MainLayout>
       <div className="flex flex-col h-[calc(100vh-4rem)]">
         <div className="pb-4 flex items-center justify-between">
-          <h1 className="text-3xl font-bold tracking-tight">AI Chat</h1>
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">AI Chat</h1>
+            {userProfile?.name && (
+              <p className="text-sm text-muted-foreground mt-1">
+                Welcome back, {userProfile.name}!
+              </p>
+            )}
+          </div>
           <div className="flex items-center gap-2">
             <ToggleGroup type="single" value={activeTab} onValueChange={(value) => value && setActiveTab(value)}>
               <TooltipProvider>
@@ -528,53 +521,7 @@ const ChatPage = () => {
     return (
       <div className="space-y-4">
         {messages.map((message, index) => (
-          <div
-            key={index}
-            className={`flex ${
-              message.role === "user" ? "justify-end" : "justify-start"
-            }`}
-          >
-            <div
-              className={`max-w-[80%] rounded-lg p-3 ${
-                message.role === "user"
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-secondary text-secondary-foreground"
-              }`}
-            >
-              <p className="whitespace-pre-wrap">{message.content}</p>
-              
-              {message.type === "image" && message.attachment && (
-                <div className="mt-2">
-                  <img 
-                    src={message.attachment} 
-                    alt="AI generated" 
-                    className="rounded-md max-w-full h-auto"
-                  />
-                </div>
-              )}
-              
-              {message.type === "code" && (
-                <div className="mt-2">
-                  <pre className="bg-black/20 p-2 rounded text-sm overflow-x-auto">
-                    <code>{message.content.split("```")[1]}</code>
-                  </pre>
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
-                    className="mt-2"
-                    onClick={() => handleDownload(message.content.split("```")[1])}
-                  >
-                    <Download className="h-3 w-3 mr-1" />
-                    Download
-                  </Button>
-                </div>
-              )}
-              
-              <p className="text-xs opacity-70 mt-1">
-                {message.timestamp.toLocaleTimeString()}
-              </p>
-            </div>
-          </div>
+          <ChatMessage key={index} message={message} index={index} />
         ))}
         
         {isLoading && (
