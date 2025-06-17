@@ -15,13 +15,15 @@ import {
   Trash, 
   Loader2,
   Download,
-  History
+  History,
+  Upload
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { supabase, messageToJson } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { chatbotService, ChatMessage as ApiChatMessage } from "@/services/chatbotService";
 
 interface Message {
   role: "user" | "assistant";
@@ -35,15 +37,14 @@ interface Conversation {
   id: string;
   title: string;
   messages: Message[];
-  created_at: string; // Changed from Date to string to match Supabase
+  created_at: string;
   feature_type: string;
 }
 
-// Helper function to convert DB data to our Conversation type
 const convertDbToConversation = (item: any): Conversation => {
   const messages = Array.isArray(item.content) ? item.content.map((msg: any) => ({
     ...msg,
-    timestamp: new Date(msg.timestamp) // Convert timestamp string back to Date
+    timestamp: new Date(msg.timestamp)
   })) : [];
 
   return {
@@ -62,7 +63,9 @@ const ChatPage = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
+  const [uploadedFiles, setUploadedFiles] = useState<string[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const { user } = useAuth();
 
@@ -85,11 +88,15 @@ const ChatPage = () => {
         
       if (error) throw error;
       
-      // Convert data to Conversation[] type
       const conversationsData = data ? data.map(convertDbToConversation) : [];
       setConversations(conversationsData);
     } catch (error) {
       console.error("Error fetching conversations:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load conversation history",
+        variant: "destructive",
+      });
     }
   };
 
@@ -97,14 +104,10 @@ const ChatPage = () => {
     if (!user || messages.length === 0) return;
     
     try {
-      // Create a title from the first message or use default
       const title = messages[0]?.content.substring(0, 30) + (messages[0]?.content.length > 30 ? '...' : '') || "New conversation";
-      
-      // Convert Message objects to JSON-safe format
       const jsonMessages = messageToJson(messages);
       
       if (currentConversationId) {
-        // Update existing conversation
         const { error } = await supabase
           .from('conversation_history')
           .update({
@@ -115,7 +118,6 @@ const ChatPage = () => {
           
         if (error) throw error;
       } else {
-        // Create new conversation
         const { data, error } = await supabase
           .from('conversation_history')
           .insert({
@@ -171,14 +173,42 @@ const ChatPage = () => {
     }
   };
 
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (!files || files.length === 0) return;
+
+    try {
+      setIsLoading(true);
+      const uploadPromises = Array.from(files).map(file => chatbotService.uploadFile(file));
+      const uploadedFilePaths = await Promise.all(uploadPromises);
+      
+      setUploadedFiles(prev => [...prev, ...uploadedFilePaths]);
+      
+      toast({
+        title: "Files uploaded",
+        description: `${files.length} file(s) uploaded successfully`,
+      });
+    } catch (error: any) {
+      toast({
+        title: "Upload failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
-  const handleSendMessage = () => {
+  const handleSendMessage = async () => {
     if (!input.trim()) return;
 
-    // Add user message
     const userMessage: Message = {
       role: "user",
       content: input,
@@ -190,59 +220,61 @@ const ChatPage = () => {
     setInput("");
     setIsLoading(true);
     
-    // Simulate AI response based on the active tab
-    setTimeout(() => {
-      let aiMessage: Message;
-      
-      switch (activeTab) {
-        case "image":
-          aiMessage = {
-            role: "assistant",
-            content: "I've generated this image based on your prompt.",
-            timestamp: new Date(),
-            type: "image",
-            attachment: "https://source.unsplash.com/random/600x400?sig=" + Math.random(), // Placeholder image
-          };
-          break;
-        case "code":
-          aiMessage = {
-            role: "assistant",
-            content: `Here's the code implementation for your request:\n\n\`\`\`javascript\nfunction calculateSum(arr) {\n  return arr.reduce((sum, current) => sum + current, 0);\n}\n\nconst numbers = [1, 2, 3, 4, 5];\nconst total = calculateSum(numbers);\nconsole.log(total); // Output: 15\n\`\`\``,
-            timestamp: new Date(),
-            type: "code",
-          };
-          break;
-        case "audio":
-          aiMessage = {
-            role: "assistant",
-            content: "I've transcribed the audio content. Here's what it says:",
-            timestamp: new Date(),
-            type: "text",
-          };
-          break;
-        default:
-          aiMessage = {
-            role: "assistant",
-            content: `This is a simulated response to your message: "${input}". In a real implementation, this would connect to an AI model API.`,
-            timestamp: new Date(),
-            type: "text",
-          };
-      }
+    try {
+      // Convert messages to API format
+      const chatHistory: ApiChatMessage[] = messages.map(msg => ({
+        role: msg.role,
+        content: msg.content
+      }));
+
+      // Call the real chatbot API
+      const response = await chatbotService.sendMessage({
+        message: input,
+        history: chatHistory,
+        uploaded_files: uploadedFiles
+      });
+
+      const aiMessage: Message = {
+        role: "assistant",
+        content: response.response,
+        timestamp: new Date(),
+        type: activeTab === "code" ? "code" : "text",
+      };
       
       setMessages((prev) => [...prev, aiMessage]);
-      setIsLoading(false);
       
       // Auto-save conversation after AI response
       setTimeout(() => {
         saveConversation();
       }, 500);
       
-    }, 1000);
+    } catch (error: any) {
+      console.error('Error sending message:', error);
+      
+      // Fallback to simulated response if API fails
+      const fallbackMessage: Message = {
+        role: "assistant",
+        content: `I apologize, but I'm currently experiencing connection issues. This is a fallback response to your message: "${input}". Please try again in a moment.`,
+        timestamp: new Date(),
+        type: "text",
+      };
+      
+      setMessages((prev) => [...prev, fallbackMessage]);
+      
+      toast({
+        title: "Connection issue",
+        description: "Using fallback response. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const clearChat = () => {
     setMessages([]);
     setCurrentConversationId(null);
+    setUploadedFiles([]);
   };
 
   const handleDownload = (content: string) => {
@@ -317,6 +349,31 @@ const ChatPage = () => {
               </TooltipProvider>
             </ToggleGroup>
             
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileUpload}
+              multiple
+              className="hidden"
+              accept=".txt,.pdf,.doc,.docx,.json,.csv"
+            />
+            
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button 
+                    variant="outline" 
+                    size="icon" 
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isLoading}
+                  >
+                    <Upload className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Upload files</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+            
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -371,6 +428,19 @@ const ChatPage = () => {
             </Sheet>
           </div>
         </div>
+
+        {uploadedFiles.length > 0 && (
+          <div className="mb-4 p-2 bg-secondary rounded-lg">
+            <p className="text-sm text-muted-foreground mb-1">Uploaded files:</p>
+            <div className="flex flex-wrap gap-1">
+              {uploadedFiles.map((file, index) => (
+                <span key={index} className="text-xs bg-primary/10 px-2 py-1 rounded">
+                  {file}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
 
         <Card className="flex-1 flex flex-col overflow-hidden mb-4">
           <CardContent className="flex-1 overflow-y-auto p-4">
