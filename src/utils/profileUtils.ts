@@ -15,7 +15,13 @@ export const fetchUserProfile = async (userId: string): Promise<ProfileType | nu
       return null;
     }
     
-    return data;
+    // Ensure theme is properly typed
+    const profile: ProfileType = {
+      ...data,
+      theme: (data.theme === 'dark' ? 'dark' : 'light') as 'light' | 'dark'
+    };
+    
+    return profile;
   } catch (error) {
     console.error('Error fetching user profile:', error);
     return null;
@@ -44,7 +50,13 @@ export const createUserProfile = async (userId: string, userData: any): Promise<
       return null;
     }
     
-    return data;
+    // Ensure theme is properly typed
+    const profile: ProfileType = {
+      ...data,
+      theme: (data.theme === 'dark' ? 'dark' : 'light') as 'light' | 'dark'
+    };
+    
+    return profile;
   } catch (error) {
     console.error('Error creating user profile:', error);
     return null;

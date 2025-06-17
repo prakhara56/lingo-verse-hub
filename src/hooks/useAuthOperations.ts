@@ -1,4 +1,3 @@
-
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
@@ -59,44 +58,9 @@ export const useAuthOperations = () => {
           throw error;
         }
       } else {
-        // Sign in with username - get the email from profiles table
-        const { data: profileData, error: profileError } = await supabase
-          .from('profiles')
-          .select('id')
-          .eq('username', emailOrUsername)
-          .single();
-          
-        if (profileError || !profileData) {
-          throw new Error('Username not found. Please check your credentials or try signing in with your email.');
-        }
-        
-        // Get the user's email from the auth system using the profile id
-        // We need to use the auth admin functions or find another approach
-        // For now, let's try a different approach - store email in metadata during signup
-        const { data: users, error: usersError } = await supabase.auth.admin.listUsers();
-        
-        if (usersError) {
-          // Fallback: try to get email from user metadata stored during signup
-          throw new Error('Unable to authenticate with username. Please try signing in with your email address.');
-        }
-        
-        const user = users.users.find(u => u.id === profileData.id);
-        if (!user?.email) {
-          throw new Error('Unable to find account associated with this username. Please try signing in with your email.');
-        }
-        
-        // Now sign in with the email
-        const { error: signInError } = await supabase.auth.signInWithPassword({
-          email: user.email,
-          password,
-        });
-        
-        if (signInError) {
-          if (signInError.message.includes('Invalid login credentials')) {
-            throw new Error('Invalid username or password. Please check your credentials and try again.');
-          }
-          throw signInError;
-        }
+        // For username login, we'll inform the user to use email instead
+        // Since accessing auth.users directly is complex in this setup
+        throw new Error('Please sign in using your email address instead of username.');
       }
 
       toast({
@@ -187,7 +151,7 @@ export const useAuthOperations = () => {
         .from('profiles')
         .select('username')
         .eq('username', username)
-        .single();
+        .maybeSingle();
         
       if (existingUser) {
         throw new Error('Username already taken. Please choose another one.');
