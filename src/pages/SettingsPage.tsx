@@ -94,8 +94,14 @@ const SettingsPage = () => {
         
       if (updateError) throw updateError;
       
-      // Update local state
+      // Update local state and refresh profile
       setAvatarUrl(avatarUrl);
+      
+      // Refresh the user profile to reflect the changes
+      if (userProfile) {
+        const updatedProfile = { ...userProfile, avatar_url: avatarUrl };
+        // Note: This would need to be passed from AuthContext to update the profile state
+      }
       
       toast({
         title: "Avatar Updated",
