@@ -28,7 +28,7 @@ This is a sample FastAPI backend for AI Craftworks that provides API endpoints f
 
 3. Install dependencies:
    ```bash
-   pip install fastapi uvicorn pydantic python-multipart
+   pip install fastapi uvicorn pydantic python-multipart PyJWT
    ```
 
    For a full AI implementation, you would also need:
@@ -36,14 +36,16 @@ This is a sample FastAPI backend for AI Craftworks that provides API endpoints f
    pip install openai langchain yfinance pytube
    ```
 
-4. Set your API keys as environment variables:
+4. Set your API keys and Supabase secret as environment variables:
    - On Windows:
      ```bash
      set OPENAI_API_KEY=your_openai_api_key
+     set SUPABASE_JWT_SECRET=your_supabase_jwt_secret
      ```
    - On macOS/Linux:
      ```bash
      export OPENAI_API_KEY=your_openai_api_key
+     export SUPABASE_JWT_SECRET=your_supabase_jwt_secret
      ```
 
 ### Running the Server
@@ -81,6 +83,12 @@ For production, you should:
    - Google Cloud Run
    - Heroku
    - DigitalOcean App Platform
+
+### Supabase Configuration
+
+1. Open your Supabase project and navigate to **Project Settings > API**.
+2. Copy the **JWT secret** value.
+3. Set this value as the `SUPABASE_JWT_SECRET` environment variable used by the backend.
 
 ## Further Customization
 

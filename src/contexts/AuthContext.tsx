@@ -34,6 +34,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             if (mounted) {
               setSession(newSession);
               setUser(newSession?.user ?? null);
+              if (newSession?.access_token) {
+                localStorage.setItem('auth_token', newSession.access_token);
+              } else {
+                localStorage.removeItem('auth_token');
+              }
               
               if (newSession?.user) {
                 // Use setTimeout to prevent potential deadlocks with Supabase client
@@ -66,6 +71,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (mounted) {
           setSession(currentSession);
           setUser(currentSession?.user ?? null);
+          if (currentSession?.access_token) {
+            localStorage.setItem('auth_token', currentSession.access_token);
+          }
           
           if (currentSession?.user) {
             const profile = await fetchUserProfile(currentSession.user.id);

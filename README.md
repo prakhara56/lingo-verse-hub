@@ -54,3 +54,14 @@ This project is built with .
 - React
 - shadcn-ui
 - Tailwind CSS
+
+## Environment Variables
+
+Create a `.env` file based on `.env.example` and fill in your Supabase credentials:
+
+```
+VITE_SUPABASE_URL=<your_supabase_url>
+VITE_SUPABASE_ANON_KEY=<your_supabase_anon_key>
+VITE_API_BASE_URL=http://localhost:8000
+SUPABASE_JWT_SECRET=<your_supabase_jwt_secret>
+```
