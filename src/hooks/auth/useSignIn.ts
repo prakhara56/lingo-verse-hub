@@ -1,18 +1,18 @@
 import { useNavigate } from 'react-router-dom';
-import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
+import { useToast }   from '@/hooks/use-toast';
+import { supabase }   from '@/integrations/supabase/client';
 import { validateSignInInput, isEmail } from '@/utils/authValidation';
 
 export const useSignIn = () => {
   const { toast } = useToast();
-  const navigate = useNavigate();
+  const navigate   = useNavigate();
 
   const signIn = async (emailOrUsername: string, password: string) => {
-    // Input validation
+    // 0️⃣  Validate inputs
     const validationError = validateSignInInput(emailOrUsername, password);
     if (validationError) {
       toast({
-        title: 'Error signing in',
+        title: 'Validation Error',
         description: validationError,
         variant: 'destructive',
       });
@@ -20,42 +20,66 @@ export const useSignIn = () => {
     }
 
     try {
-      // Determine if input is email or username
-      if (isEmail(emailOrUsername)) {
-        // Sign in with email
-        const { error } = await supabase.auth.signInWithPassword({
-          email: emailOrUsername,
-          password,
-        });
+      let emailToUse = emailOrUsername;
 
-        if (error) {
-          // Handle specific auth errors
-          if (error.message.includes('Invalid login credentials')) {
-            throw new Error('Invalid email or password. Please check your credentials and try again.');
-          } else if (error.message.includes('Email not confirmed')) {
-            throw new Error('Please check your email and click the confirmation link before signing in.');
-          } else if (error.message.includes('Too many requests')) {
-            throw new Error('Too many login attempts. Please wait a moment before trying again.');
-          }
-          throw error;
+      // 1️⃣ If it’s a username, resolve the real email via your RPC
+      if (!isEmail(emailOrUsername)) {
+        const { data: email, error: rpcError } = await supabase
+          .rpc('get_email_by_username', { p_username: emailOrUsername });
+
+        if (rpcError) {
+          console.error('Username lookup failed:', rpcError);
+          throw new Error('Could not look up that username. Please try again later.');
         }
-      } else {
-        // For username login, we'll inform the user to use email instead
-        // Since accessing auth.users directly is complex in this setup
-        throw new Error('Please sign in using your email address instead of username.');
+        if (!email) {
+          throw new Error('Username not found. Please check your username and try again.');
+        }
+        emailToUse = email;
       }
 
+      // 2️⃣ Attempt to sign in with email + password
+      const { data, error: authError } = await supabase.auth.signInWithPassword({
+        email:    emailToUse,
+        password,
+      });
+
+      if (authError) {
+        const msg = authError.message;
+        if (msg.includes('Invalid login credentials')) {
+          throw new Error('Invalid email or password. Please check and try again.');
+        }
+        if (msg.includes('Email not confirmed')) {
+          throw new Error('Email not confirmed. Please check your inbox for the verification link.');
+        }
+        if (msg.includes('Too many requests')) {
+          throw new Error('Too many login attempts. Please wait a moment and try again.');
+        }
+        // Fallback for any other GoTrue error
+        throw new Error(msg);
+      }
+
+      // 3️⃣ Make sure we actually got a session
+      if (!data.session) {
+        throw new Error('No session was created. Please try signing in again.');
+      }
+
+      // ✅ Success
       toast({
         title: 'Welcome back!',
         description: 'You have successfully signed in.',
       });
-      
       navigate('/');
-    } catch (error: any) {
-      console.error("Sign in error:", error);
+    } catch (err: any) {
+      console.error('Sign in error:', err);
+
+      // 4️⃣ Detect network issues vs other errors
+      const description = err.message?.includes('Failed to fetch')
+        ? 'Network error. Please check your connection and try again.'
+        : err.message || 'An unexpected error occurred. Please try again.';
+
       toast({
         title: 'Error signing in',
-        description: error.message || 'An unexpected error occurred. Please try again.',
+        description,
         variant: 'destructive',
       });
     }

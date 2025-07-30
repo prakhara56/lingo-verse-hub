@@ -15,7 +15,7 @@ export type AuthContextType = {
   user: User | null;
   loading: boolean;
   signIn: (emailOrUsername: string, password: string) => Promise<void>;
-  signUp: (email: string, password: string, username: string, name: string) => Promise<void>;
+  signUp: (email: string, password: string, username: string, name?: string) => Promise<boolean>;
   signOut: () => Promise<void>;
   userProfile: ProfileType | null;
   isAdmin: boolean;

@@ -1,8 +1,14 @@
-
-import { useState, useRef } from "react";
+import React, { useState, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -11,47 +17,49 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
-import { Sun, Moon, Key, Save, User, Upload } from "lucide-react";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Sun, Moon, Key, Save, User, Upload, Trash2 } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { supabase } from "@/integrations/supabase/client";
 
-const SettingsPage = () => {
+const SettingsPage: React.FC = () => {
+  const navigate = useNavigate();
   const { theme, toggleTheme } = useTheme();
   const { userProfile, user, updateUsername, updateName } = useAuth();
+  const { toast } = useToast();
+
+  // Profile form state
   const [username, setUsername] = useState(userProfile?.username || "");
   const [fullName, setFullName] = useState(userProfile?.name || "");
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(userProfile?.avatar_url || null);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
+  const [isLoading, setIsLoading] = useState(false);
+
+  // API key form state
   const [openaiKey, setOpenaiKey] = useState("");
   const [anthropicKey, setAnthropicKey] = useState("");
   const [defaultModel, setDefaultModel] = useState("gpt-4");
-  const { toast } = useToast();
-  const [isLoading, setIsLoading] = useState(false);
-  const [avatarUrl, setAvatarUrl] = useState(userProfile?.avatar_url || null);
-  const avatarInputRef = useRef<HTMLInputElement>(null);
 
+  // Save profile handler
   const handleSaveProfile = async () => {
     if (!username.trim()) {
-      toast({
+      return toast({
         title: "Username Required",
         description: "Please enter a valid username.",
         variant: "destructive",
       });
-      return;
     }
-
     setIsLoading(true);
-    
-    // Update username
     const usernameSuccess = await updateUsername(username);
-    
-    // Update name
-    let nameSuccess = true;
-    if (fullName !== userProfile?.name) {
-      nameSuccess = await updateName(fullName);
-    }
-    
+    const nameSuccess = fullName !== userProfile?.name
+      ? await updateName(fullName)
+      : true;
     setIsLoading(false);
-    
     if (usernameSuccess && nameSuccess) {
       toast({
         title: "Profile Updated",
@@ -60,57 +68,41 @@ const SettingsPage = () => {
     }
   };
 
+  // Avatar upload handler
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!e.target.files || e.target.files.length === 0 || !user) {
-      return;
-    }
-    
+    if (!e.target.files?.length || !user) return;
     const file = e.target.files[0];
-    const fileExt = file.name.split('.').pop();
-    const filePath = `${user.id}-${Math.random()}.${fileExt}`;
-    
+    const ext = file.name.split('.').pop();
+    const path = `${user.id}-${Math.random()}.${ext}`;
     setIsLoading(true);
-    
     try {
-      // Upload the avatar to storage
-      const { error: uploadError } = await supabase.storage
-        .from('avatars')
-        .upload(filePath, file);
-        
+      const { error: uploadError } = await supabase
+        .storage
+        .from("avatars")
+        .upload(path, file);
       if (uploadError) throw uploadError;
-      
-      // Generate a public URL
-      const { data: publicURLData } = supabase.storage
-        .from('avatars')
-        .getPublicUrl(filePath);
-        
-      const avatarUrl = publicURLData.publicUrl;
-      
-      // Update the profile with the new avatar URL
+
+      const { data: publicURLData } = supabase
+        .storage
+        .from("avatars")
+        .getPublicUrl(path);
+      const url = publicURLData.publicUrl;
+
       const { error: updateError } = await supabase
-        .from('profiles')
-        .update({ avatar_url: avatarUrl })
-        .eq('id', user.id);
-        
+        .from("profiles")
+        .update({ avatar_url: url })
+        .eq("id", user.id);
       if (updateError) throw updateError;
-      
-      // Update local state and refresh profile
-      setAvatarUrl(avatarUrl);
-      
-      // Refresh the user profile to reflect the changes
-      if (userProfile) {
-        const updatedProfile = { ...userProfile, avatar_url: avatarUrl };
-        // Note: This would need to be passed from AuthContext to update the profile state
-      }
-      
+
+      setAvatarUrl(url);
       toast({
         title: "Avatar Updated",
         description: "Your profile photo has been updated.",
       });
-    } catch (error: any) {
+    } catch (err: any) {
       toast({
         title: "Upload Failed",
-        description: error.message || "Failed to upload avatar.",
+        description: err.message || "Failed to upload avatar.",
         variant: "destructive",
       });
     } finally {
@@ -118,6 +110,46 @@ const SettingsPage = () => {
     }
   };
 
+  // Avatar delete handler
+  const handleDeleteAvatar = async () => {
+    if (!avatarUrl || !user) return;
+    if (!confirm("Are you sure you want to delete your avatar?")) return;
+    setIsLoading(true);
+    try {
+      // Extract the storage key from the public URL
+      const parts = avatarUrl.split("/avatars/");
+      if (parts.length < 2) throw new Error("Invalid avatar URL");
+      const filePath = parts[1];
+
+      const { error: removeError } = await supabase
+        .storage
+        .from("avatars")
+        .remove([filePath]);
+      if (removeError) throw removeError;
+
+      const { error: updateError } = await supabase
+        .from("profiles")
+        .update({ avatar_url: null })
+        .eq("id", user.id);
+      if (updateError) throw updateError;
+
+      setAvatarUrl(null);
+      toast({
+        title: "Avatar Deleted",
+        description: "Your profile photo has been removed.",
+      });
+    } catch (err: any) {
+      toast({
+        title: "Delete Failed",
+        description: err.message || "Could not delete avatar.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Save API keys handler (stub)
   const handleSaveApiKeys = () => {
     toast({
       title: "API Keys Saved",
@@ -129,7 +161,6 @@ const SettingsPage = () => {
     <MainLayout>
       <div className="container mx-auto px-4 py-8">
         <h1 className="text-3xl font-bold mb-8">Settings</h1>
-
         <Tabs defaultValue="profile" className="space-y-8">
           <TabsList>
             <TabsTrigger value="profile">
@@ -152,7 +183,11 @@ const SettingsPage = () => {
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <div className="flex items-center gap-1">
-                      {theme === 'dark' ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
+                      {theme === "dark" ? (
+                        <Moon className="h-4 w-4" />
+                      ) : (
+                        <Sun className="h-4 w-4" />
+                      )}
                       <span>Appearance</span>
                     </div>
                   </TooltipTrigger>
@@ -204,18 +239,33 @@ const SettingsPage = () => {
                   <div className="relative">
                     <Avatar className="h-24 w-24">
                       <AvatarImage src={avatarUrl || ""} />
-                      <AvatarFallback className="text-lg">{userProfile?.username?.substring(0, 2).toUpperCase() || "AI"}</AvatarFallback>
+                      <AvatarFallback className="text-lg">
+                        {userProfile?.username
+                          ?.substring(0, 2)
+                          .toUpperCase() || "AI"}
+                      </AvatarFallback>
                     </Avatar>
-                    <Button 
-                      variant="secondary" 
-                      size="icon" 
-                      className="absolute bottom-0 right-0 rounded-full h-8 w-8"
+                    <Button
+                      variant="secondary"
+                      size="icon"
+                      className="absolute bottom-0 right-12 rounded-full h-8 w-8"
                       onClick={() => avatarInputRef.current?.click()}
                       disabled={isLoading}
                     >
                       <Upload className="h-4 w-4" />
                     </Button>
-                    <input 
+                    {avatarUrl && (
+                      <Button
+                        variant="destructive"
+                        size="icon"
+                        className="absolute bottom-0 right-0 rounded-full h-8 w-8"
+                        onClick={handleDeleteAvatar}
+                        disabled={isLoading}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
+                    <input
                       type="file"
                       ref={avatarInputRef}
                       onChange={handleAvatarUpload}
@@ -224,32 +274,33 @@ const SettingsPage = () => {
                     />
                   </div>
                 </div>
+
                 <div className="space-y-2">
                   <Label htmlFor="email">Email</Label>
                   <Input id="email" value={user?.email || ""} disabled />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="full-name">Full Name</Label>
-                  <Input 
-                    id="full-name" 
-                    value={fullName} 
-                    onChange={(e) => setFullName(e.target.value)} 
+                  <Input
+                    id="full-name"
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
                     disabled={isLoading}
                     placeholder="Your full name"
                   />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="username">Username</Label>
-                  <Input 
-                    id="username" 
-                    value={username} 
-                    onChange={(e) => setUsername(e.target.value)} 
+                  <Input
+                    id="username"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
                     disabled={isLoading}
                     required
                   />
                 </div>
-                <Button 
-                  onClick={handleSaveProfile} 
+                <Button
+                  onClick={handleSaveProfile}
                   className="flex gap-2"
                   disabled={isLoading}
                 >
@@ -264,24 +315,28 @@ const SettingsPage = () => {
             <Card>
               <CardHeader>
                 <CardTitle>Appearance</CardTitle>
-                <CardDescription>Customize the look and feel of the application</CardDescription>
+                <CardDescription>
+                  Customize the look and feel of the application
+                </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    {theme === 'dark' ? (
+                    {theme === "dark" ? (
                       <Moon className="h-5 w-5" />
                     ) : (
                       <Sun className="h-5 w-5" />
                     )}
                     <div>
                       <p className="font-medium">Theme Mode</p>
-                      <p className="text-sm text-muted-foreground">Switch between light and dark mode</p>
+                      <p className="text-sm text-muted-foreground">
+                        Switch between light and dark mode
+                      </p>
                     </div>
                   </div>
-                  <Switch 
-                    checked={theme === 'dark'} 
-                    onCheckedChange={() => toggleTheme()} 
+                  <Switch
+                    checked={theme === "dark"}
+                    onCheckedChange={toggleTheme}
                   />
                 </div>
               </CardContent>
@@ -292,20 +347,23 @@ const SettingsPage = () => {
             <Card>
               <CardHeader>
                 <CardTitle>API Keys</CardTitle>
-                <CardDescription>Configure your AI providers API keys for enhanced capabilities</CardDescription>
+                <CardDescription>
+                  Configure your AI providers API keys for enhanced
+                  capabilities
+                </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="openai-key">OpenAI API Key</Label>
                   <div className="relative">
                     <Key className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                    <Input 
-                      id="openai-key" 
+                    <Input
+                      id="openai-key"
                       className="pl-10"
                       type="password"
-                      placeholder="sk-..." 
-                      value={openaiKey} 
-                      onChange={(e) => setOpenaiKey(e.target.value)} 
+                      placeholder="sk-..."
+                      value={openaiKey}
+                      onChange={(e) => setOpenaiKey(e.target.value)}
                     />
                   </div>
                   <p className="text-sm text-muted-foreground">
@@ -316,13 +374,13 @@ const SettingsPage = () => {
                   <Label htmlFor="anthropic-key">Anthropic API Key</Label>
                   <div className="relative">
                     <Key className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                    <Input 
-                      id="anthropic-key" 
+                    <Input
+                      id="anthropic-key"
                       className="pl-10"
                       type="password"
-                      placeholder="sk_ant-..." 
-                      value={anthropicKey} 
-                      onChange={(e) => setAnthropicKey(e.target.value)} 
+                      placeholder="sk_ant-..."
+                      value={anthropicKey}
+                      onChange={(e) => setAnthropicKey(e.target.value)}
                     />
                   </div>
                   <p className="text-sm text-muted-foreground">
@@ -363,21 +421,27 @@ const SettingsPage = () => {
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="font-medium">Context Memory</p>
-                      <p className="text-sm text-muted-foreground">Keep previous conversation history</p>
+                      <p className="text-sm text-muted-foreground">
+                        Keep previous conversation history
+                      </p>
                     </div>
                     <Switch defaultChecked />
                   </div>
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="font-medium">Enhanced Generation</p>
-                      <p className="text-sm text-muted-foreground">Use more advanced models for better results</p>
+                      <p className="text-sm text-muted-foreground">
+                        Use more advanced models for better results
+                      </p>
                     </div>
                     <Switch defaultChecked />
                   </div>
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="font-medium">Automatic Citations</p>
-                      <p className="text-sm text-muted-foreground">Include sources in AI responses when available</p>
+                      <p className="text-sm text-muted-foreground">
+                        Include sources in AI responses when available
+                      </p>
                     </div>
                     <Switch />
                   </div>
