@@ -1,12 +1,17 @@
-
 from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+import jwt
+from jwt import PyJWTError
 from pydantic import BaseModel
 from typing import List, Optional
 import uvicorn
 import json
 import os
+
+SUPABASE_JWT_SECRET = os.environ.get("SUPABASE_JWT_SECRET")
+if not SUPABASE_JWT_SECRET:
+    raise RuntimeError("SUPABASE_JWT_SECRET environment variable not set")
 
 # You would use real models/libraries here
 # import openai
@@ -24,7 +29,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Simple token auth for demo - use proper auth in production
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
 # Models
@@ -54,10 +58,9 @@ class VideoRequest(BaseModel):
 class NotesResponse(BaseModel):
     notes: str
 
-# Demo authentication
+# Demo authentication endpoint (not used with Supabase auth)
 @app.post("/token")
 async def login(form_data: OAuth2PasswordRequestForm = Depends()):
-    # In production, validate against your user database
     if form_data.username == "demo" and form_data.password == "password":
         return {"access_token": "demo_token", "token_type": "bearer"}
     raise HTTPException(
@@ -66,15 +69,22 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()):
         headers={"WWW-Authenticate": "Bearer"},
     )
 
-# Auth dependency - validate token in production
-async def get_current_user(token: str = Depends(oauth2_scheme)):
-    if token != "demo_token":
+
+def verify_supabase_token(token: str):
+    try:
+        payload = jwt.decode(token, SUPABASE_JWT_SECRET, algorithms=["HS256"])
+        return payload
+    except PyJWTError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid authentication credentials",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    return {"username": "demo"}
+
+
+async def get_current_user(token: str = Depends(oauth2_scheme)):
+    payload = verify_supabase_token(token)
+    return {"user_id": payload.get("sub")}
 
 # API routes
 @app.post("/api/chat", response_model=ChatResponse)
